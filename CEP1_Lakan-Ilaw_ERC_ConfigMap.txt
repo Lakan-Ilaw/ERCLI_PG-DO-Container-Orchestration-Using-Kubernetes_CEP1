@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cep1-configmap
+  namespace: cep-project1
+data:
+  DB_USER: root
+  DB_HOST: cep1-mysql-svc
+  DB_NAME: cep1-mysql-db

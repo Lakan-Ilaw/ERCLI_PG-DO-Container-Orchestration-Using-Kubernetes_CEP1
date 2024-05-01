@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cep1-mysql-deploy
+  namespace: cep-project1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cep1-mysql-pod
+  template:
+    metadata:
+      labels:
+        app: cep1-mysql-pod
+    spec:
+      containers:
+        - name: cep1-mysql-cont
+          image: mysql:latest
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cep1-secret
+                  key: DB_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: cep1-configmap
+                  key: DB_NAME
+          ports:
+            - containerPort: 3306
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: cep1-mysql-pv-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: cep1-mysql-pv-storage
+          persistentVolumeClaim:
+            claimName: cep1-mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cep1-mysql-svc
+  namespace: cep-project1
+spec:
+  selector:
+    app: cep1-mysql-pod
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cep1-wp-deploy
+  namespace: cep-project1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cep1-wp-pod
+  template:
+    metadata:
+      labels:
+        app: cep1-wp-pod
+    spec:
+      initContainers:
+        - name: cep1-wp-init-cont
+          image: mysql:latest
+          command: ["sh", "-c",
+            "until mysql -h cep1-mysql-svc -u $MYSQL_USER -p$MYSQL_ROOT_PASSWORD -e \"SHOW DATABASES;\" 2>/dev/null; do echo \"Waiting for MySQL to start...\"; sleep 5; done"
+          ]
+          env:
+            - name: MYSQL_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: cep1-configmap
+                  key: DB_USER
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cep1-secret
+                  key: DB_PASSWORD
+      containers:
+        - name: cep1-wp-cont
+          image: wordpress:latest
+          env:
+            - name: WORDPRESS_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cep1-configmap
+                  key: DB_HOST
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: cep1-configmap
+                  key: DB_USER
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cep1-secret
+                  key: DB_PASSWORD
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cep1-configmap
+                  key: DB_NAME
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: cep1-wp-pv-storage
+              mountPath: /var/www/html
+      volumes:
+        - name: cep1-wp-pv-storage
+          persistentVolumeClaim:
+            claimName: cep1-wp-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cep1-wp-svc
+  namespace: cep-project1
+spec:
+  selector:
+    app: cep1-wp-pod
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 32123
+  type: NodePort

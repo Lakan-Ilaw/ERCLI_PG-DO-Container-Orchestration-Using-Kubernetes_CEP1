@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cep-project1
+  annotations:
+    contact: Elmer Richard C. Lakan-Ilaw
+    description: PG-DO Course-end Project 1 for Container Orchestration Using Kubernetes
